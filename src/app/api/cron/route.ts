@@ -1,8 +1,20 @@
+/**
+ * GET /api/cron
+ *
+ * RSSフィードを取得し、メモリストアに保存する。
+ *
+ * 使い方:
+ * 1. 手動実行: フロントの🔄ボタン or ブラウザで /api/cron にアクセス
+ * 2. 定期実行: Vercel Cron Jobs で自動実行（vercel.json で設定済み）
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllFeeds } from "@/lib/rss";
+import { upsertArticles } from "@/lib/mock-data";
 
 export async function GET(request: NextRequest) {
   try {
+    // ── 本番環境での認証チェック（オプション） ──
     const cronSecret = process.env.CRON_SECRET;
     if (cronSecret) {
       const authHeader = request.headers.get("authorization");
@@ -12,13 +24,23 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("[Cron] RSS取得を開始します...");
-    const articles = await fetchAllFeeds();
-    console.log(`[Cron] ${articles.length} 件の記事を取得しました`);
+
+    // ── RSSフィードを全て取得 ──
+    const fetchedArticles = await fetchAllFeeds();
+
+    console.log(`[Cron] ${fetchedArticles.length} 件の記事をRSSから取得`);
+
+    // ── メモリストアに保存 ──
+    const addedCount = upsertArticles(fetchedArticles);
+
+    const message = `${fetchedArticles.length} 件取得、${addedCount} 件を新規追加しました`;
+    console.log(`[Cron] ${message}`);
 
     return NextResponse.json({
       success: true,
-      message: `${articles.length} 件の記事を取得しました`,
-      count: articles.length,
+      message,
+      fetched: fetchedArticles.length,
+      added: addedCount,
     });
   } catch (error) {
     console.error("[Cron] エラー:", error);
