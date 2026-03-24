@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFavorites, getFavoriteIds, addFavorite, removeFavorite } from "@/lib/mock-data";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const articles = getFavorites();
