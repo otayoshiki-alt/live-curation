@@ -59,17 +59,6 @@ const PLATFORM_COLORS: Record<string, string> = {
   "BIGO LIVE": "bg-cyan-500 text-white",
 };
 
-/** ãµã ãã¤ã«æªåå¾æã®ãã©ãããã©ã¼ã å¥ã°ã©ãã¼ã·ã§ã³ */
-const PLATFORM_GRADIENTS: Record<string, string> = {
-  TikTok: "linear-gradient(135deg, #010101 0%, #25F4EE 50%, #FE2C55 100%)",
-  Instagram: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)",
-  Pococha: "linear-gradient(135deg, #00b4d8, #0077b6)",
-  REALITY: "linear-gradient(135deg, #f9d423, #ff4e50)",
-  SHOWROOM: "linear-gradient(135deg, #ff416c, #ff4b2b)",
-  "17LIVE": "linear-gradient(135deg, #00b09b, #96c93d)",
-  Mildom: "linear-gradient(135deg, #4568dc, #b06ab3)",
-  "BIGO LIVE": "linear-gradient(135deg, #1cb5e0, #000046)",
-};
 
 // âââ ã½ã¼ã¹ããã¸ âââ
 
@@ -93,7 +82,19 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-// âââ è¨äºã«ã¼ãï¼ãµã ãã¤ã«ä»ãï¼ âââ
+// âââ è¨äºã«ã¼ãï¼ã¿ã¤ãã«éè¦ã¬ã¤ã¢ã¦ãï¼ âââ
+
+/** ãã©ãããã©ã¼ã å¥ã¢ã¯ã»ã³ãã«ã©ã¼ï¼å·¦ãã¼ãã¼ç¨ï¼ */
+const PLATFORM_ACCENT: Record<string, string> = {
+  TikTok: "#010101",
+  Instagram: "#E1306C",
+  Pococha: "#0077b6",
+  REALITY: "#f9d423",
+  SHOWROOM: "#ff4b2b",
+  "17LIVE": "#00b09b",
+  Mildom: "#4568dc",
+  "BIGO LIVE": "#1cb5e0",
+};
 
 function ArticleCard({
   article,
@@ -105,7 +106,7 @@ function ArticleCard({
   onToggleFavorite: (id: string) => void;
 }) {
   const platformClass = PLATFORM_COLORS[article.platform] || "bg-gray-500 text-white";
-  const gradient = PLATFORM_GRADIENTS[article.platform] || "linear-gradient(135deg, #667eea, #764ba2)";
+  const accentColor = PLATFORM_ACCENT[article.platform] || "#6366f1";
 
   return (
     <a
@@ -113,32 +114,14 @@ function ArticleCard({
       target="_blank"
       rel="noopener noreferrer"
       className="block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-150"
+      style={{ borderLeft: `4px solid ${accentColor}` }}
     >
-      <div className="flex flex-row sm:flex-col">
-        {/* ãµã ãã¤ã« */}
-        <div className="relative w-28 min-h-[90px] sm:w-full sm:h-40 flex-shrink-0 overflow-hidden bg-gray-200">
-          {article.thumbnail ? (
-            <img
-              src={article.thumbnail}
-              alt=""
-              loading="lazy"
-              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
-          ) : (
-            <div
-              className="w-full h-full flex items-center justify-center"
-              style={{ background: gradient }}
-            >
-              <span className="text-2xl font-extrabold text-white/90 drop-shadow-lg tracking-wider">
-                {article.platform}
-              </span>
-            </div>
-          )}
-          {/* ãã©ãããã©ã¼ã ã¿ã° */}
-          <div className="absolute top-2 left-2">
+      <div className="p-4 flex flex-col gap-3">
+        {/* ãããã¼: ãã©ãããã©ã¼ã  + ã½ã¼ã¹ + ãæ°ã«å¥ã */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             <span
-              className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
+              className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${
                 article.platform === "Instagram" ? "" : platformClass
               }`}
               style={
@@ -149,31 +132,26 @@ function ArticleCard({
             >
               {article.platform}
             </span>
+            <SourceBadge source={article.source} />
           </div>
-          {/* ãæ°ã«å¥ããã¿ã³ */}
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavorite(article.id); }}
-            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 active:scale-90 transition-transform"
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-all"
             aria-label={isFavorite ? "ãæ°ã«å¥ãããåé¤" : "ãæ°ã«å¥ãã«è¿½å "}
           >
-            <Heart size={16} className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-400"} />
+            <Heart size={16} className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-300"} />
           </button>
         </div>
 
-        {/* ãã­ã¹ãé¨å */}
-        <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between min-w-0">
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-              <SourceBadge source={article.source} />
-            </div>
-            <h3 className="text-sm font-semibold text-gray-900 leading-snug mb-0 line-clamp-2 sm:line-clamp-3">
-              {article.title}
-            </h3>
-          </div>
-          <div className="flex items-center gap-1 text-xs text-gray-400 mt-2">
-            <Clock size={12} />
-            <span>{formatTime(article.publishedAt)}</span>
-          </div>
+        {/* ã¿ã¤ãã«ï¼å¤§ããã»è¤æ°è¡è¡¨ç¤ºï¼ */}
+        <h3 className="text-base font-semibold text-gray-900 leading-relaxed line-clamp-3">
+          {article.title}
+        </h3>
+
+        {/* ããã¿ã¼: æ¥æ */}
+        <div className="flex items-center gap-1 text-xs text-gray-400">
+          <Clock size={12} />
+          <span>{formatTime(article.publishedAt)}</span>
         </div>
       </div>
     </a>
@@ -390,7 +368,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {displayArticles.map((article) => (
               <ArticleCard
                 key={article.id}
