@@ -24,27 +24,27 @@ import {
 } from "@/lib/api-client";
 import type { Article } from "@/types/article";
 
-// âââ å®æ° âââ
+// ─── 定数 ───
 
 type TabName =
-  | "ãæ°ã«å¥ã"
-  | "ãã¹ã¦"
+  | "お気に入り"
+  | "すべて"
   | "TikTok"
   | "Instagram"
   | "Pococha"
   | "REALITY"
   | "SHOWROOM"
-  | "ãã®ä»ã¢ããª";
+  | "その他アプリ";
 
 const TABS: TabName[] = [
-  "ãæ°ã«å¥ã",
-  "ãã¹ã¦",
+  "お気に入り",
+  "すべて",
   "TikTok",
   "Instagram",
   "Pococha",
   "REALITY",
   "SHOWROOM",
-  "ãã®ä»ã¢ããª",
+  "その他アプリ",
 ];
 
 const MAIN_PLATFORMS = ["TikTok", "Instagram", "Pococha", "REALITY", "SHOWROOM"];
@@ -60,7 +60,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 };
 
 
-// âââ ã½ã¼ã¹ããã¸ âââ
+// ─── ソースバッジ ───
 
 function SourceBadge({ source }: { source: string }) {
   const configs: Record<string, { icon: typeof FileText; label: string; color: string }> = {
@@ -68,8 +68,8 @@ function SourceBadge({ source }: { source: string }) {
     YouTube:    { icon: Youtube,       label: "YouTube",  color: "text-red-600 bg-red-50" },
     note:       { icon: FileText,      label: "note",     color: "text-green-700 bg-green-50" },
     "PR TIMES": { icon: ExternalLink,  label: "PR TIMES", color: "text-blue-700 bg-blue-50" },
-    Webã¡ãã£ã¢: { icon: Globe,        label: "Web",      color: "text-purple-700 bg-purple-50" },
-    å¬å¼ãã­ã°:  { icon: FileText,     label: "å¬å¼",     color: "text-orange-700 bg-orange-50" },
+    Webメディア: { icon: Globe,        label: "Web",      color: "text-purple-700 bg-purple-50" },
+    公式ブログ:  { icon: FileText,     label: "公式",     color: "text-orange-700 bg-orange-50" },
     RSS:        { icon: Globe,         label: "RSS",      color: "text-amber-700 bg-amber-50" },
   };
   const config = configs[source] || configs["RSS"];
@@ -82,9 +82,9 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-// âââ è¨äºã«ã¼ãï¼ã¿ã¤ãã«éè¦ã¬ã¤ã¢ã¦ãï¼ âââ
+// ─── 記事カード（タイトル重視レイアウト） ───
 
-/** ãã©ãããã©ã¼ã å¥ã¢ã¯ã»ã³ãã«ã©ã¼ï¼å·¦ãã¼ãã¼ç¨ï¼ */
+/** プラットフォーム別アクセントカラー（左ボーダー用） */
 const PLATFORM_ACCENT: Record<string, string> = {
   TikTok: "#010101",
   Instagram: "#E1306C",
@@ -117,7 +117,7 @@ function ArticleCard({
       style={{ borderLeft: `4px solid ${accentColor}` }}
     >
       <div className="p-4 flex flex-col gap-3">
-        {/* ãããã¼: ãã©ãããã©ã¼ã  + ã½ã¼ã¹ + ãæ°ã«å¥ã */}
+        {/* ヘッダー: プラットフォーム + ソース + お気に入り */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <span
@@ -137,18 +137,18 @@ function ArticleCard({
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavorite(article.id); }}
             className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-all"
-            aria-label={isFavorite ? "ãæ°ã«å¥ãããåé¤" : "ãæ°ã«å¥ãã«è¿½å "}
+            aria-label={isFavorite ? "お気に入りから削除" : "お気に入りに追加"}
           >
             <Heart size={16} className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-300"} />
           </button>
         </div>
 
-        {/* ã¿ã¤ãã«ï¼å¤§ããã»è¤æ°è¡è¡¨ç¤ºï¼ */}
+        {/* タイトル（大きめ・複数行表示） */}
         <h3 className="text-base font-semibold text-gray-900 leading-relaxed line-clamp-3">
           {article.title}
         </h3>
 
-        {/* ããã¿ã¼: æ¥æ */}
+        {/* フッター: 日時 */}
         <div className="flex items-center gap-1 text-xs text-gray-400">
           <Clock size={12} />
           <span>{formatTime(article.publishedAt)}</span>
@@ -158,7 +158,7 @@ function ArticleCard({
   );
 }
 
-/** æ¥æããâ¯æéåããâ¯æ¥åãã®ãããªç¸å¯¾è¡¨ç¤ºã«å¤æ */
+/** 日時を「◯時間前」「◯日前」のような相対表示に変換 */
 function formatTime(isoString: string): string {
   const now = new Date();
   const date = new Date(isoString);
@@ -167,17 +167,17 @@ function formatTime(isoString: string): string {
   const diffHour = Math.floor(diffMs / 3600000);
   const diffDay = Math.floor(diffMs / 86400000);
 
-  if (diffMin < 1) return "ãã£ãä»";
-  if (diffMin < 60) return `${diffMin}åå`;
-  if (diffHour < 24) return `${diffHour}æéå`;
-  if (diffDay < 7) return `${diffDay}æ¥å`;
+  if (diffMin < 1) return "たった今";
+  if (diffMin < 60) return `${diffMin}分前`;
+  if (diffHour < 24) return `${diffHour}時間前`;
+  if (diffDay < 7) return `${diffDay}日前`;
   return date.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
 }
 
-// âââ ã¡ã¤ã³ãã¼ã¸ âââ
+// ─── メインページ ───
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<TabName>("ãã¹ã¦");
+  const [activeTab, setActiveTab] = useState<TabName>("すべて");
   const [searchQuery, setSearchQuery] = useState("");
   const [articles, setArticles] = useState<Article[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
@@ -185,12 +185,12 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ââ è¨äºèª­ã¿è¾¼ã¿ ââ
+  // ── 記事読み込み ──
   const loadArticles = useCallback(async () => {
     try {
       setLoading(true);
       const platformParam =
-        activeTab === "ãæ°ã«å¥ã" || activeTab === "ãã¹ã¦" || activeTab === "ãã®ä»ã¢ããª"
+        activeTab === "お気に入り" || activeTab === "すべて" || activeTab === "その他アプリ"
           ? undefined
           : activeTab;
 
@@ -201,43 +201,43 @@ export default function Home() {
 
       let filtered = data.articles;
 
-      // ããã®ä»ã¢ããªãã®å ´åã¯ãã­ã³ãå´ã§é¤å¤
-      if (activeTab === "ãã®ä»ã¢ããª") {
+      // 「その他アプリ」の場合はフロント側で除外
+      if (activeTab === "その他アプリ") {
         filtered = filtered.filter((a) => !MAIN_PLATFORMS.includes(a.platform));
       }
 
       setArticles(filtered);
     } catch (err) {
-      console.error("è¨äºåå¾ã¨ã©ã¼:", err);
+      console.error("記事取得エラー:", err);
     } finally {
       setLoading(false);
     }
   }, [activeTab, searchQuery]);
 
-  // ââ ãæ°ã«å¥ãèª­ã¿è¾¼ã¿ ââ
+  // ── お気に入り読み込み ──
   const loadFavorites = useCallback(async () => {
     try {
       const data = await fetchFavorites();
       setFavoriteIds(new Set(data.ids));
       setFavoriteArticles(data.articles);
     } catch (err) {
-      console.error("ãæ°ã«å¥ãåå¾ã¨ã©ã¼:", err);
+      console.error("お気に入り取得エラー:", err);
     }
   }, []);
 
-  // ââ ååèª­ã¿è¾¼ã¿ ââ
+  // ── 初回読み込み ──
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
 
-  // ââ ã¿ãã»æ¤ç´¢å¤æ´æã«åèª­ã¿è¾¼ã¿ ââ
+  // ── タブ・検索変更時に再読み込み ──
   useEffect(() => {
-    if (activeTab !== "ãæ°ã«å¥ã") {
+    if (activeTab !== "お気に入り") {
       loadArticles();
     }
   }, [activeTab, searchQuery, loadArticles]);
 
-  // ââ ãæ°ã«å¥ããã°ã« ââ
+  // ── お気に入りトグル ──
   const toggleFavorite = useCallback(async (id: string) => {
     const isFav = favoriteIds.has(id);
     try {
@@ -245,34 +245,34 @@ export default function Home() {
         ? await removeFavoriteApi(id)
         : await addFavoriteApi(id);
       setFavoriteIds(new Set(result.ids));
-      // ãæ°ã«å¥ãã¿ãè¡¨ç¤ºä¸­ãªãååå¾
+      // お気に入りタブ表示中なら再取得
       const favData = await fetchFavorites();
       setFavoriteArticles(favData.articles);
     } catch (err) {
-      console.error("ãæ°ã«å¥ãæä½ã¨ã©ã¼:", err);
+      console.error("お気に入り操作エラー:", err);
     }
   }, [favoriteIds]);
 
-  // ââ RSSæååå¾ ââ
+  // ── RSS手動取得 ──
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       const result = await triggerRssFetch();
-      alert(`â ${result.message}`);
+      alert(`✅ ${result.message}`);
       loadArticles();
     } catch {
-      alert("â RSSåå¾ã«å¤±æãã¾ãã");
+      alert("❌ RSS取得に失敗しました");
     } finally {
       setRefreshing(false);
     }
   };
 
-  // ââ è¡¨ç¤ºããè¨äº ââ
-  const displayArticles = activeTab === "ãæ°ã«å¥ã" ? favoriteArticles : articles;
+  // ── 表示する記事 ──
+  const displayArticles = activeTab === "お気に入り" ? favoriteArticles : articles;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ââ ãããã¼ ââ */}
+      {/* ── ヘッダー ── */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -285,13 +285,13 @@ export default function Home() {
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">LiveCuration</h1>
           </div>
           <div className="flex items-center gap-2">
-            {/* RSSæ´æ°ãã¿ã³ */}
+            {/* RSS更新ボタン */}
             <button
               onClick={handleRefresh}
               disabled={refreshing}
               className="p-2 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50"
-              aria-label="RSSæ´æ°"
-              title="RSSãã£ã¼ããææ°ã«æ´æ°"
+              aria-label="RSS更新"
+              title="RSSフィードを最新に更新"
             >
               {refreshing ? (
                 <Loader2 size={20} className="text-gray-500 animate-spin" />
@@ -299,11 +299,11 @@ export default function Home() {
                 <RefreshCw size={20} className="text-gray-500" />
               )}
             </button>
-            {/* éç¥ãã« */}
+            {/* 通知ベル */}
             <button
-              onClick={() => alert("ð éç¥è¨­å®\n\nã©ã¤ãã³ãã¼ã¹ã»éä¿¡é¢é£ã®ææ°ãã¥ã¼ã¹ãããã·ã¥éç¥ã§ãå±ããã¾ãã\nï¼ãã®æ©è½ã¯ä»å¾å®è£äºå®ã§ãï¼")}
+              onClick={() => alert("🔔 通知設定\n\nライブコマース・配信関連の最新ニュースをプッシュ通知でお届けします。\n（この機能は今後実装予定です）")}
               className="relative p-2 rounded-full hover:bg-gray-100 transition-colors"
-              aria-label="éç¥"
+              aria-label="通知"
             >
               <Bell size={22} className="text-gray-600" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
@@ -311,13 +311,13 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ââ æ¤ç´¢ + ã¿ã ââ */}
+        {/* ── 検索 + タブ ── */}
         <div className="max-w-7xl mx-auto px-4 pb-3 space-y-3">
           <div className="max-w-md relative">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="ã­ã¼ã¯ã¼ãã§æ¤ç´¢..."
+              placeholder="キーワードで検索..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-10 py-2.5 bg-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:bg-white transition-all"
@@ -341,7 +341,7 @@ export default function Home() {
                     }`}
                   >
                     {tab}
-                    {tab === "ãæ°ã«å¥ã" && (
+                    {tab === "お気に入り" && (
                       <span className="ml-1 text-xs opacity-70">{favoriteIds.size}</span>
                     )}
                   </button>
@@ -352,19 +352,19 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ââ è¨äºã°ãªãã ââ */}
+      {/* ── 記事グリッド ── */}
       <main className="max-w-7xl mx-auto px-4 py-5">
-        {loading && activeTab !== "ãæ°ã«å¥ã" ? (
+        {loading && activeTab !== "お気に入り" ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={32} className="text-gray-300 animate-spin" />
           </div>
         ) : displayArticles.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-gray-300 mb-3">
-              {activeTab === "ãæ°ã«å¥ã" ? <Heart size={48} className="mx-auto" /> : <Search size={48} className="mx-auto" />}
+              {activeTab === "お気に入り" ? <Heart size={48} className="mx-auto" /> : <Search size={48} className="mx-auto" />}
             </div>
             <p className="text-gray-400 text-sm">
-              {activeTab === "ãæ°ã«å¥ã" ? "ãæ°ã«å¥ãã«è¿½å ãããè¨äºã¯ããã¾ãã" : "è©²å½ããè¨äºãè¦ã¤ããã¾ããã§ãã"}
+              {activeTab === "お気に入り" ? "お気に入りに追加された記事はありません" : "該当する記事が見つかりませんでした"}
             </p>
           </div>
         ) : (
@@ -380,7 +380,7 @@ export default function Home() {
           </div>
         )}
         <div className="text-center text-xs text-gray-300 py-8">
-          {displayArticles.length} ä»¶è¡¨ç¤ºä¸­
+          {displayArticles.length} 件表示中
         </div>
       </main>
 
