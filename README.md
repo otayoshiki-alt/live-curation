@@ -16,3 +16,6 @@
 - Tailwind CSS
 - lucide-react
 - rss-parser
+
+
+Deployed with Vercel
