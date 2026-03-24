@@ -12,6 +12,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchAllFeeds } from "@/lib/rss";
 import { upsertArticles } from "@/lib/mock-data";
 
+// Next.js App Router: キャッシュを無効化して毎回実行する
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // ── 本番環境での認証チェック（オプション） ──
