@@ -1,48 +1,195 @@
 /**
- * 記事データストア
+ * 記事データストア（Vercel KV 永続化版）
  *
- * Vercel（サーバーレス）でも SQLite なしですぐ動くように、
- * メモリ上にデータを保持する。
- *
- * ⚠️ サーバーレス環境ではリクエストごとにプロセスが再起動される
- *    可能性があるため、RSS取得した記事はモック記事とマージして保持する。
- *    完全な永続化が必要な場合は DB / KV に差し替え。
+ * Upstash Redis (Vercel KV) を使って記事とお気に入りを永続化。
+ * KV が利用できない場合はインメモリにフォールバック。
  */
 
+import { kv } from "@vercel/kv";
 import type { Article } from "@/types/article";
 
-// ─── 初期モックデータ（RSS取得前のサンプル） ───
-const SEED_ARTICLES: Article[] = [
-  { id: "seed01", title: "TikTok、ライブコマース機能「TikTok Shop」日本版を2026年夏に正式ローンチへ", platform: "TikTok", source: "PR TIMES", thumbnail: "https://picsum.photos/seed/tiktok1/400/300", url: "https://example.com/1", publishedAt: "2026-03-24T12:00:00Z", createdAt: "2026-03-24T12:00:00Z" },
-  { id: "seed02", title: "Instagram、リール×ライブ配信の新ハイブリッド機能をテスト中", platform: "Instagram", source: "Webメディア", thumbnail: "https://picsum.photos/seed/insta2/400/300", url: "https://example.com/2", publishedAt: "2026-03-24T11:00:00Z", createdAt: "2026-03-24T11:00:00Z" },
-  { id: "seed03", title: "Pococha、配信者収益が前年比150%増——国内ライブ配信市場を牽引", platform: "Pococha", source: "PR TIMES", thumbnail: "https://picsum.photos/seed/poco3/400/300", url: "https://example.com/3", publishedAt: "2026-03-24T10:00:00Z", createdAt: "2026-03-24T10:00:00Z" },
-  { id: "seed04", title: "REALITY、アバター×AIチャット機能を搭載した次世代ライブ配信を発表", platform: "REALITY", source: "note", thumbnail: "https://picsum.photos/seed/reality4/400/300", url: "https://example.com/4", publishedAt: "2026-03-24T09:00:00Z", createdAt: "2026-03-24T09:00:00Z" },
-  { id: "seed05", title: "SHOWROOM、企業向けライブコマースプランを新設——EC連携を強化", platform: "SHOWROOM", source: "PR TIMES", thumbnail: "https://picsum.photos/seed/show5/400/300", url: "https://example.com/5", publishedAt: "2026-03-24T08:00:00Z", createdAt: "2026-03-24T08:00:00Z" },
-];
+// ─── KV キー定義 ───
+const KV_ARTICLES_KEY = "articles";
+const KV_FAVORITES_KEY = "favorites";
 
-// ─── メモリ上の記事ストア（RSS取得分 + モック） ───
-let articles: Article[] = [...SEED_ARTICLES];
+// ─── フォールバック用インメモリストア ───
+let memoryArticles: Article[] = [];
+let memoryFavoriteIds: string[] = [];
 
-// メモリ上のお気に入り
-let favoriteIds: Set<string> = new Set();
+// ─── KV が利用可能かチェック ───
+function isKVAvailable(): boolean {
+  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+}
 
 // ─── RSS記事の追加（upsert） ───
+export async function upsertArticles(
+  newArticles: Omit<Article, "createdAt">[]
+): Promise<number> {
+  try {
+    if (!isKVAvailable()) {
+      return upsertArticlesMemory(newArticles);
+    }
 
-/**
- * RSS取得した記事をストアに追加する。
- * 同じIDの記事が既にある場合はスキップ（重複防止）。
- * 追加後、publishedAt の新しい順にソートする。
- */
-export function upsertArticles(
+    // KV から既存記事を取得
+    let existing: Article[] = (await kv.get<Article[]>(KV_ARTICLES_KEY)) || [];
+
+    const existingIds = new Set(existing.map((a) => a.id));
+    let addedCount = 0;
+
+    for (const article of newArticles) {
+      if (existingIds.has(article.id)) continue;
+      existing.push({
+        ...article,
+        createdAt: new Date().toISOString(),
+      });
+      existingIds.add(article.id);
+      addedCount++;
+    }
+
+    // publishedAt 降順ソート
+    existing.sort(
+      (a, b) =>
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    );
+
+    // RSS取得後にモック記事を除去
+    if (addedCount > 0) {
+      existing = existing.filter(
+        (a) => !a.url.startsWith("https://example.com/")
+      );
+    }
+
+    // KV に保存
+    await kv.set(KV_ARTICLES_KEY, existing);
+
+    console.log(`[Store/KV] ${addedCount} 件追加, 合計 ${existing.length} 件`);
+    return addedCount;
+  } catch (error) {
+    console.error("[Store/KV] upsertArticles エラー:", error);
+    return upsertArticlesMemory(newArticles);
+  }
+}
+
+// ─── 記事取得 ───
+export async function getArticles(options?: {
+  platform?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ articles: Article[]; total: number }> {
+  try {
+    let articles: Article[];
+
+    if (isKVAvailable()) {
+      articles = (await kv.get<Article[]>(KV_ARTICLES_KEY)) || [];
+    } else {
+      articles = [...memoryArticles];
+    }
+
+    // フィルタリング
+    let filtered = [...articles];
+
+    if (options?.platform && options.platform !== "すべて") {
+      filtered = filtered.filter((a) => a.platform === options.platform);
+    }
+
+    if (options?.search) {
+      const q = options.search.toLowerCase();
+      filtered = filtered.filter(
+        (a) =>
+          a.title.toLowerCase().includes(q) ||
+          a.platform.toLowerCase().includes(q) ||
+          a.source.toLowerCase().includes(q)
+      );
+    }
+
+    const total = filtered.length;
+    const limit = options?.limit || 50;
+    const offset = options?.offset || 0;
+    filtered = filtered.slice(offset, offset + limit);
+
+    return { articles: filtered, total };
+  } catch (error) {
+    console.error("[Store/KV] getArticles エラー:", error);
+    return { articles: [], total: 0 };
+  }
+}
+
+// ─── お気に入り ───
+export async function getFavorites(): Promise<Article[]> {
+  try {
+    const ids = await getFavoriteIds();
+    if (ids.length === 0) return [];
+
+    let articles: Article[];
+    if (isKVAvailable()) {
+      articles = (await kv.get<Article[]>(KV_ARTICLES_KEY)) || [];
+    } else {
+      articles = [...memoryArticles];
+    }
+
+    const idSet = new Set(ids);
+    return articles.filter((a) => idSet.has(a.id));
+  } catch (error) {
+    console.error("[Store/KV] getFavorites エラー:", error);
+    return [];
+  }
+}
+
+export async function getFavoriteIds(): Promise<string[]> {
+  try {
+    if (isKVAvailable()) {
+      return (await kv.get<string[]>(KV_FAVORITES_KEY)) || [];
+    }
+    return [...memoryFavoriteIds];
+  } catch (error) {
+    console.error("[Store/KV] getFavoriteIds エラー:", error);
+    return [];
+  }
+}
+
+export async function addFavorite(articleId: string): Promise<void> {
+  try {
+    if (isKVAvailable()) {
+      const ids = (await kv.get<string[]>(KV_FAVORITES_KEY)) || [];
+      if (!ids.includes(articleId)) {
+        ids.push(articleId);
+        await kv.set(KV_FAVORITES_KEY, ids);
+      }
+    } else {
+      if (!memoryFavoriteIds.includes(articleId)) {
+        memoryFavoriteIds.push(articleId);
+      }
+    }
+  } catch (error) {
+    console.error("[Store/KV] addFavorite エラー:", error);
+  }
+}
+
+export async function removeFavorite(articleId: string): Promise<void> {
+  try {
+    if (isKVAvailable()) {
+      const ids = (await kv.get<string[]>(KV_FAVORITES_KEY)) || [];
+      const filtered = ids.filter((id) => id !== articleId);
+      await kv.set(KV_FAVORITES_KEY, filtered);
+    } else {
+      memoryFavoriteIds = memoryFavoriteIds.filter((id) => id !== articleId);
+    }
+  } catch (error) {
+    console.error("[Store/KV] removeFavorite エラー:", error);
+  }
+}
+
+// ─── インメモリフォールバック ───
+function upsertArticlesMemory(
   newArticles: Omit<Article, "createdAt">[]
 ): number {
-  const existingIds = new Set(articles.map((a) => a.id));
+  const existingIds = new Set(memoryArticles.map((a) => a.id));
   let addedCount = 0;
 
   for (const article of newArticles) {
     if (existingIds.has(article.id)) continue;
-
-    articles.push({
+    memoryArticles.push({
       ...article,
       createdAt: new Date().toISOString(),
     });
@@ -50,71 +197,20 @@ export function upsertArticles(
     addedCount++;
   }
 
-  // 新しい記事を上に（publishedAt降順）
-  articles.sort(
+  memoryArticles.sort(
     (a, b) =>
       new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   );
 
-  // RSS取得後にモック記事（example.com）を除去
   if (addedCount > 0) {
-    articles = articles.filter(
+    memoryArticles = memoryArticles.filter(
       (a) => !a.url.startsWith("https://example.com/")
     );
   }
 
   console.log(
-    `[Store] ${addedCount} 件追加, 合計 ${articles.length} 件`
+    `[Store/Memory] ${addedCount} 件追加, 合計 ${memoryArticles.length} 件`
   );
   return addedCount;
 }
 
-// ─── 記事取得 ───
-
-export function getArticles(options?: {
-  platform?: string;
-  search?: string;
-  limit?: number;
-  offset?: number;
-}): { articles: Article[]; total: number } {
-  let filtered = [...articles];
-
-  if (options?.platform && options.platform !== "すべて") {
-    filtered = filtered.filter((a) => a.platform === options.platform);
-  }
-
-  if (options?.search) {
-    const q = options.search.toLowerCase();
-    filtered = filtered.filter(
-      (a) =>
-        a.title.toLowerCase().includes(q) ||
-        a.platform.toLowerCase().includes(q) ||
-        a.source.toLowerCase().includes(q)
-    );
-  }
-
-  const total = filtered.length;
-  const limit = options?.limit || 50;
-  const offset = options?.offset || 0;
-  filtered = filtered.slice(offset, offset + limit);
-
-  return { articles: filtered, total };
-}
-
-// ─── お気に入り ───
-
-export function getFavorites(): Article[] {
-  return articles.filter((a) => favoriteIds.has(a.id));
-}
-
-export function getFavoriteIds(): string[] {
-  return [...favoriteIds];
-}
-
-export function addFavorite(articleId: string): void {
-  favoriteIds.add(articleId);
-}
-
-export function removeFavorite(articleId: string): void {
-  favoriteIds.delete(articleId);
-}
