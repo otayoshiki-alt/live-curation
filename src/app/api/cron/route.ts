@@ -1,10 +1,10 @@
 /**
  * GET /api/cron
  *
- * RSSフィードを取得し、メモリストアに保存する。
+ * RSSフィードを取得し、Vercel KV に保存する。
  *
  * 使い方:
- * 1. 手動実行: フロントの🔄ボタン or ブラウザで /api/cron にアクセス
+ * 1. 手動実行: フロントの更新ボタン or ブラウザで /api/cron にアクセス
  * 2. 定期実行: Vercel Cron Jobs で自動実行（vercel.json で設定済み）
  */
 
@@ -30,11 +30,10 @@ export async function GET(request: NextRequest) {
 
     // ── RSSフィードを全て取得 ──
     const fetchedArticles = await fetchAllFeeds();
-
     console.log(`[Cron] ${fetchedArticles.length} 件の記事をRSSから取得`);
 
-    // ── メモリストアに保存 ──
-    const addedCount = upsertArticles(fetchedArticles);
+    // ── KV ストアに保存 ──
+    const addedCount = await upsertArticles(fetchedArticles);
 
     const message = `${fetchedArticles.length} 件取得、${addedCount} 件を新規追加しました`;
     console.log(`[Cron] ${message}`);
