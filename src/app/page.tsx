@@ -31,6 +31,7 @@ const PAGE_SIZE = 50;
 type TabName =
   | "お気に入り"
   | "すべて"
+  | "321"
   | "TikTok"
   | "Instagram"
   | "Pococha"
@@ -41,6 +42,7 @@ type TabName =
 const TABS: TabName[] = [
   "お気に入り",
   "すべて",
+  "321",
   "TikTok",
   "Instagram",
   "Pococha",
@@ -48,6 +50,9 @@ const TABS: TabName[] = [
   "SHOWROOM",
   "その他アプリ",
 ];
+
+// ─── 自社（321）タブ用キーワード ───
+const COMPANY_SEARCH_KEYWORD = "321";
 
 const MAIN_PLATFORMS = ["TikTok", "Instagram", "Pococha", "REALITY", "SHOWROOM"];
 
@@ -204,14 +209,20 @@ export default function Home() {
   const loadArticles = useCallback(async () => {
     try {
       setLoading(true);
+      const isCompanyTab = activeTab === "321";
       const platformParam =
-        activeTab === "お気に入り" || activeTab === "すべて" || activeTab === "その他アプリ"
+        activeTab === "お気に入り" || activeTab === "すべて" || activeTab === "その他アプリ" || isCompanyTab
           ? undefined
           : activeTab;
 
+      // 321タブ: 自社キーワードで検索（ユーザー検索と組み合わせ）
+      const searchParam = isCompanyTab
+        ? (searchQuery ? `${COMPANY_SEARCH_KEYWORD} ${searchQuery}` : COMPANY_SEARCH_KEYWORD)
+        : (searchQuery || undefined);
+
       const data = await fetchArticles({
         platform: platformParam,
-        search: searchQuery || undefined,
+        search: searchParam,
         limit: PAGE_SIZE,
         offset: 0,
       });
@@ -236,14 +247,19 @@ export default function Home() {
   const loadMore = useCallback(async () => {
     try {
       setLoadingMore(true);
+      const isCompanyTab = activeTab === "321";
       const platformParam =
-        activeTab === "お気に入り" || activeTab === "すべて" || activeTab === "その他アプリ"
+        activeTab === "お気に入り" || activeTab === "すべて" || activeTab === "その他アプリ" || isCompanyTab
           ? undefined
           : activeTab;
 
+      const searchParam = isCompanyTab
+        ? (searchQuery ? `${COMPANY_SEARCH_KEYWORD} ${searchQuery}` : COMPANY_SEARCH_KEYWORD)
+        : (searchQuery || undefined);
+
       const data = await fetchArticles({
         platform: platformParam,
-        search: searchQuery || undefined,
+        search: searchParam,
         limit: PAGE_SIZE,
         offset: articles.length,
       });
@@ -395,17 +411,29 @@ export default function Home() {
             <div className="flex gap-1.5 min-w-max">
               {TABS.map((tab) => {
                 const isActive = activeTab === tab;
+                const isCompany = tab === "321";
                 return (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                       isActive
-                        ? "bg-gray-900 text-white shadow-sm"
-                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        ? isCompany
+                          ? "text-white shadow-sm"
+                          : "bg-gray-900 text-white shadow-sm"
+                        : isCompany
+                          ? "text-indigo-600 hover:bg-indigo-100"
+                          : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                     }`}
+                    style={
+                      isCompany
+                        ? isActive
+                          ? { background: "linear-gradient(135deg, #6366f1, #ec4899)" }
+                          : { background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)" }
+                        : undefined
+                    }
                   >
-                    {tab}
+                    {isCompany && "🏢 "}{tab}
                     {tab === "お気に入り" && (
                       <span className="ml-1 text-xs opacity-70">{favoriteIds.size}</span>
                     )}
