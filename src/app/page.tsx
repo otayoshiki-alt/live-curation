@@ -14,6 +14,7 @@ import {
   ExternalLink,
   RefreshCw,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 import {
   fetchArticles,
@@ -25,6 +26,7 @@ import {
 import type { Article } from "@/types/article";
 
 // ─── 定数 ───
+const PAGE_SIZE = 50;
 
 type TabName =
   | "お気に入り"
@@ -59,18 +61,16 @@ const PLATFORM_COLORS: Record<string, string> = {
   "BIGO LIVE": "bg-cyan-500 text-white",
 };
 
-
 // ─── ソースバッジ ───
-
 function SourceBadge({ source }: { source: string }) {
   const configs: Record<string, { icon: typeof FileText; label: string; color: string }> = {
-    X:          { icon: MessageCircle, label: "X",        color: "text-gray-800 bg-gray-100" },
-    YouTube:    { icon: Youtube,       label: "YouTube",  color: "text-red-600 bg-red-50" },
-    note:       { icon: FileText,      label: "note",     color: "text-green-700 bg-green-50" },
-    "PR TIMES": { icon: ExternalLink,  label: "PR TIMES", color: "text-blue-700 bg-blue-50" },
-    Webメディア: { icon: Globe,        label: "Web",      color: "text-purple-700 bg-purple-50" },
-    公式ブログ:  { icon: FileText,     label: "公式",     color: "text-orange-700 bg-orange-50" },
-    RSS:        { icon: Globe,         label: "RSS",      color: "text-amber-700 bg-amber-50" },
+    X: { icon: MessageCircle, label: "X", color: "text-gray-800 bg-gray-100" },
+    YouTube: { icon: Youtube, label: "YouTube", color: "text-red-600 bg-red-50" },
+    note: { icon: FileText, label: "note", color: "text-green-700 bg-green-50" },
+    "PR TIMES": { icon: ExternalLink, label: "PR TIMES", color: "text-blue-700 bg-blue-50" },
+    Webメディア: { icon: Globe, label: "Web", color: "text-purple-700 bg-purple-50" },
+    公式ブログ: { icon: FileText, label: "公式", color: "text-orange-700 bg-orange-50" },
+    RSS: { icon: Globe, label: "RSS", color: "text-amber-700 bg-amber-50" },
   };
   const config = configs[source] || configs["RSS"];
   const Icon = config.icon;
@@ -83,7 +83,6 @@ function SourceBadge({ source }: { source: string }) {
 }
 
 // ─── 記事カード（タイトル重視レイアウト） ───
-
 /** プラットフォーム別アクセントカラー（左ボーダー用） */
 const PLATFORM_ACCENT: Record<string, string> = {
   TikTok: "#010101",
@@ -126,7 +125,14 @@ function ArticleCard({
               }`}
               style={
                 article.platform === "Instagram"
-                  ? { background: "linear-gradient(90deg, #833ab4, #fd1d1d, #fcb045)", color: "white", padding: "2px 8px", borderRadius: "9999px", fontSize: "0.75rem", fontWeight: 700 }
+                  ? {
+                      background: "linear-gradient(90deg, #833ab4, #fd1d1d, #fcb045)",
+                      color: "white",
+                      padding: "2px 8px",
+                      borderRadius: "9999px",
+                      fontSize: "0.75rem",
+                      fontWeight: 700
+                    }
                   : undefined
               }
             >
@@ -134,12 +140,20 @@ function ArticleCard({
             </span>
             <SourceBadge source={article.source} />
           </div>
+
           <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleFavorite(article.id); }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleFavorite(article.id);
+            }}
             className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-all"
             aria-label={isFavorite ? "お気に入りから削除" : "お気に入りに追加"}
           >
-            <Heart size={16} className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-300"} />
+            <Heart
+              size={16}
+              className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-300"}
+            />
           </button>
         </div>
 
@@ -175,17 +189,18 @@ function formatTime(isoString: string): string {
 }
 
 // ─── メインページ ───
-
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabName>("すべて");
   const [searchQuery, setSearchQuery] = useState("");
   const [articles, setArticles] = useState<Article[]>([]);
+  const [totalArticles, setTotalArticles] = useState(0);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [favoriteArticles, setFavoriteArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ── 記事読み込み ──
+  // ── 記事読み込み（初回 or タブ/検索変更時） ──
   const loadArticles = useCallback(async () => {
     try {
       setLoading(true);
@@ -197,6 +212,8 @@ export default function Home() {
       const data = await fetchArticles({
         platform: platformParam,
         search: searchQuery || undefined,
+        limit: PAGE_SIZE,
+        offset: 0,
       });
 
       let filtered = data.articles;
@@ -207,12 +224,44 @@ export default function Home() {
       }
 
       setArticles(filtered);
+      setTotalArticles(data.total);
     } catch (err) {
       console.error("記事取得エラー:", err);
     } finally {
       setLoading(false);
     }
   }, [activeTab, searchQuery]);
+
+  // ── もっと読み込む ──
+  const loadMore = useCallback(async () => {
+    try {
+      setLoadingMore(true);
+      const platformParam =
+        activeTab === "お気に入り" || activeTab === "すべて" || activeTab === "その他アプリ"
+          ? undefined
+          : activeTab;
+
+      const data = await fetchArticles({
+        platform: platformParam,
+        search: searchQuery || undefined,
+        limit: PAGE_SIZE,
+        offset: articles.length,
+      });
+
+      let newArticles = data.articles;
+
+      if (activeTab === "その他アプリ") {
+        newArticles = newArticles.filter((a) => !MAIN_PLATFORMS.includes(a.platform));
+      }
+
+      setArticles((prev) => [...prev, ...newArticles]);
+      setTotalArticles(data.total);
+    } catch (err) {
+      console.error("追加読み込みエラー:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [activeTab, searchQuery, articles.length]);
 
   // ── お気に入り読み込み ──
   const loadFavorites = useCallback(async () => {
@@ -245,6 +294,7 @@ export default function Home() {
         ? await removeFavoriteApi(id)
         : await addFavoriteApi(id);
       setFavoriteIds(new Set(result.ids));
+
       // お気に入りタブ表示中なら再取得
       const favData = await fetchFavorites();
       setFavoriteArticles(favData.articles);
@@ -269,6 +319,7 @@ export default function Home() {
 
   // ── 表示する記事 ──
   const displayArticles = activeTab === "お気に入り" ? favoriteArticles : articles;
+  const hasMore = activeTab !== "お気に入り" && articles.length < totalArticles;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -284,6 +335,7 @@ export default function Home() {
             </div>
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">LiveCuration</h1>
           </div>
+
           <div className="flex items-center gap-2">
             {/* RSS更新ボタン */}
             <button
@@ -299,9 +351,14 @@ export default function Home() {
                 <RefreshCw size={20} className="text-gray-500" />
               )}
             </button>
+
             {/* 通知ベル */}
             <button
-              onClick={() => alert("🔔 通知設定\n\nライブコマース・配信関連の最新ニュースをプッシュ通知でお届けします。\n（この機能は今後実装予定です）")}
+              onClick={() =>
+                alert(
+                  "🔔 通知設定\n\nライブコマース・配信関連の最新ニュースをプッシュ通知でお届けします。\n（この機能は今後実装予定です）"
+                )
+              }
               className="relative p-2 rounded-full hover:bg-gray-100 transition-colors"
               aria-label="通知"
             >
@@ -323,12 +380,18 @@ export default function Home() {
               className="w-full pl-10 pr-10 py-2.5 bg-gray-100 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:bg-white transition-all"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
                 <X size={16} />
               </button>
             )}
           </div>
-          <div className="overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+          <div
+            className="overflow-x-auto scrollbar-hide"
+            style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+          >
             <div className="flex gap-1.5 min-w-max">
               {TABS.map((tab) => {
                 const isActive = activeTab === tab;
@@ -337,7 +400,9 @@ export default function Home() {
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
-                      isActive ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      isActive
+                        ? "bg-gray-900 text-white shadow-sm"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                     }`}
                   >
                     {tab}
@@ -361,10 +426,16 @@ export default function Home() {
         ) : displayArticles.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-gray-300 mb-3">
-              {activeTab === "お気に入り" ? <Heart size={48} className="mx-auto" /> : <Search size={48} className="mx-auto" />}
+              {activeTab === "お気に入り" ? (
+                <Heart size={48} className="mx-auto" />
+              ) : (
+                <Search size={48} className="mx-auto" />
+              )}
             </div>
             <p className="text-gray-400 text-sm">
-              {activeTab === "お気に入り" ? "お気に入りに追加された記事はありません" : "該当する記事が見つかりませんでした"}
+              {activeTab === "お気に入り"
+                ? "お気に入りに追加された記事はありません"
+                : "該当する記事が見つかりませんでした"}
             </p>
           </div>
         ) : (
@@ -379,17 +450,55 @@ export default function Home() {
             ))}
           </div>
         )}
+
+        {/* もっと見るボタン */}
+        {hasMore && !loading && (
+          <div className="flex justify-center py-6">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {loadingMore ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ChevronDown size={16} />
+              )}
+              {loadingMore ? "読み込み中..." : "もっと見る"}
+            </button>
+          </div>
+        )}
+
         <div className="text-center text-xs text-gray-300 py-8">
-          {displayArticles.length} 件表示中
+          {displayArticles.length}
+          {activeTab !== "お気に入り" && totalArticles > 0
+            ? ` / ${totalArticles}`
+            : ""}
+          {" 件表示中"}
         </div>
       </main>
 
       {/* CSS */}
       <style jsx global>{`
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .line-clamp-3 {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
       `}</style>
     </div>
   );
